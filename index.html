@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Slnečná energia — kalkulačka</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --sun: #F5A623;
+    --sun-dim: #c47d10;
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --surface2: #1c1c28;
+    --border: rgba(245,166,35,0.15);
+    --text: #f0ede8;
+    --muted: #7a7870;
+    --accent: #F5A623;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Starfield background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      radial-gradient(1px 1px at 10% 20%, rgba(255,255,255,0.4) 0%, transparent 100%),
+      radial-gradient(1px 1px at 30% 60%, rgba(255,255,255,0.3) 0%, transparent 100%),
+      radial-gradient(1px 1px at 50% 10%, rgba(255,255,255,0.5) 0%, transparent 100%),
+      radial-gradient(1px 1px at 70% 80%, rgba(255,255,255,0.3) 0%, transparent 100%),
+      radial-gradient(1px 1px at 85% 35%, rgba(255,255,255,0.4) 0%, transparent 100%),
+      radial-gradient(1px 1px at 20% 85%, rgba(255,255,255,0.2) 0%, transparent 100%),
+      radial-gradient(1px 1px at 60% 45%, rgba(255,255,255,0.35) 0%, transparent 100%),
+      radial-gradient(1px 1px at 90% 65%, rgba(255,255,255,0.25) 0%, transparent 100%),
+      radial-gradient(1px 1px at 40% 30%, rgba(255,255,255,0.3) 0%, transparent 100%),
+      radial-gradient(1px 1px at 75% 15%, rgba(255,255,255,0.45) 0%, transparent 100%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 3rem 1.5rem 4rem;
+  }
+
+  /* Header */
+  header {
+    text-align: center;
+    margin-bottom: 3rem;
+    animation: fadeUp 0.8s ease both;
+  }
+
+  .sun-icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 1.5rem;
+    position: relative;
+  }
+
+  .sun-core {
+    width: 32px;
+    height: 32px;
+    background: var(--sun);
+    border-radius: 50%;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 20px var(--sun), 0 0 40px rgba(245,166,35,0.4);
+  }
+
+  .sun-rays {
+    position: absolute;
+    inset: 0;
+    animation: spin 20s linear infinite;
+  }
+
+  .sun-ray {
+    position: absolute;
+    width: 3px;
+    height: 10px;
+    background: var(--sun);
+    border-radius: 2px;
+    left: 50%;
+    transform-origin: 50% 32px;
+    opacity: 0.7;
+  }
+
+  h1 {
+    font-size: clamp(1.8rem, 5vw, 2.8rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    color: var(--text);
+  }
+
+  h1 span {
+    color: var(--sun);
+  }
+
+  .subtitle {
+    margin-top: 0.75rem;
+    color: var(--muted);
+    font-size: 0.95rem;
+    font-family: 'Space Mono', monospace;
+    letter-spacing: 0.02em;
+  }
+
+  /* Results */
+  .results {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 2rem;
+    animation: fadeUp 0.8s 0.1s ease both;
+  }
+
+  .result-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem;
+    transition: border-color 0.3s;
+  }
+
+  .result-card:hover {
+    border-color: rgba(245,166,35,0.35);
+  }
+
+  .result-label {
+    font-size: 0.75rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.5rem;
+    font-family: 'Space Mono', monospace;
+  }
+
+  .result-value {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--sun);
+    font-family: 'Space Mono', monospace;
+    line-height: 1.2;
+  }
+
+  .result-unit {
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-top: 2px;
+    font-family: 'Space Mono', monospace;
+  }
+
+  /* Calculator card */
+  .calc-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.75rem;
+    animation: fadeUp 0.8s 0.2s ease both;
+  }
+
+  .control {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .control-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  .control-label {
+    font-size: 0.85rem;
+    color: var(--text);
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+
+  .control-value {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--sun);
+    font-family: 'Space Mono', monospace;
+  }
+
+  .control-hint {
+    font-size: 0.72rem;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--surface2);
+    outline: none;
+    cursor: pointer;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--sun);
+    box-shadow: 0 0 8px rgba(245,166,35,0.5);
+    cursor: pointer;
+    transition: box-shadow 0.2s;
+  }
+
+  input[type="range"]::-webkit-slider-thumb:hover {
+    box-shadow: 0 0 14px rgba(245,166,35,0.8);
+  }
+
+  input[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border: none;
+    border-radius: 50%;
+    background: var(--sun);
+    cursor: pointer;
+  }
+
+  .range-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.68rem;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+  }
+
+  /* Sky visualizer */
+  .sky-wrap {
+    background: var(--surface2);
+    border-radius: 10px;
+    padding: 1rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .sky-label {
+    font-size: 0.7rem;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    margin-bottom: 8px;
+  }
+
+  .sky {
+    position: relative;
+    height: 80px;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .horizon {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: rgba(245,166,35,0.3);
+  }
+
+  .ground {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 16px;
+    background: linear-gradient(to top, rgba(245,166,35,0.08), transparent);
+  }
+
+  .sun-dot {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--sun);
+    box-shadow: 0 0 12px var(--sun), 0 0 24px rgba(245,166,35,0.5);
+    transform: translate(-50%, 50%);
+    transition: left 0.3s, bottom 0.3s;
+  }
+
+  .angle-line {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    width: 1px;
+    background: rgba(245,166,35,0.3);
+    transform-origin: bottom center;
+    transition: height 0.3s, transform 0.3s;
+  }
+
+  /* Formula */
+  .formula-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--muted);
+    line-height: 1.8;
+    animation: fadeUp 0.8s 0.3s ease both;
+  }
+
+  .formula-box .hl { color: var(--sun); }
+
+  /* Info grid */
+  .info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+    margin-top: 2rem;
+    animation: fadeUp 0.8s 0.4s ease both;
+  }
+
+  .info-tile {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem;
+    text-align: center;
+  }
+
+  .info-tile-val {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--sun);
+    font-family: 'Space Mono', monospace;
+  }
+
+  .info-tile-lbl {
+    font-size: 0.7rem;
+    color: var(--muted);
+    margin-top: 4px;
+    line-height: 1.4;
+  }
+
+  footer {
+    text-align: center;
+    margin-top: 3rem;
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    animation: fadeUp 0.8s 0.5s ease both;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  @media (max-width: 500px) {
+    .results { grid-template-columns: 1fr; }
+    .info-grid { grid-template-columns: 1fr 1fr; }
+    .calc-card { padding: 1.25rem; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="sun-icon">
+      <div class="sun-rays" id="rays"></div>
+      <div class="sun-core"></div>
+    </div>
+    <h1>Slnečná <span>energia</span></h1>
+    <p class="subtitle">koľko joulov dopadne na 1 cm² povrchu</p>
+  </header>
+
+  <div class="results">
+    <div class="result-card">
+      <div class="result-label">Energia / sekunda</div>
+      <div class="result-value" id="res-s">—</div>
+      <div class="result-unit">J · cm⁻² · s⁻¹</div>
+    </div>
+    <div class="result-card">
+      <div class="result-label">Celková energia</div>
+      <div class="result-value" id="res-t">—</div>
+      <div class="result-unit">J · cm⁻²</div>
+    </div>
+  </div>
+
+  <div class="calc-card">
+
+    <div class="control">
+      <div class="control-header">
+        <span class="control-label">Výška Slnka nad horizontom</span>
+        <span class="control-value" id="lbl-angle">45°</span>
+      </div>
+      <input type="range" id="angle" min="0" max="180" value="45" oninput="calc()">
+      <div class="range-labels">
+        <span>0° západ</span><span>90° nadir</span><span>180° východ</span>
+      </div>
+      <div class="sky-wrap">
+        <div class="sky-label">vizualizácia polohy Slnka</div>
+        <div class="sky" id="sky">
+          <div class="angle-line" id="aline"></div>
+          <div class="sun-dot" id="sdot"></div>
+          <div class="horizon"></div>
+          <div class="ground"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="control">
+      <div class="control-header">
+        <span class="control-label">Priehľadnosť atmosféry</span>
+        <span class="control-value" id="lbl-atm">70%</span>
+      </div>
+      <input type="range" id="atm" min="30" max="95" value="70" oninput="calc()">
+      <div class="range-labels">
+        <span>30% hmla/mraky</span><span>70% bežný deň</span><span>95% jasno</span>
+      </div>
+    </div>
+
+    <div class="control">
+      <div class="control-header">
+        <span class="control-label">Čas</span>
+        <span class="control-value" id="lbl-time">60 s</span>
+      </div>
+      <input type="range" id="time" min="1" max="3600" value="60" oninput="calc()">
+      <div class="range-labels">
+        <span>1 s</span><span>30 min</span><span>1 hodina</span>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="formula-box" id="formula">—</div>
+
+  <div class="info-grid">
+    <div class="info-tile">
+      <div class="info-tile-val">1 361</div>
+      <div class="info-tile-lbl">W/m² solárna konštanta</div>
+    </div>
+    <div class="info-tile">
+      <div class="info-tile-val">0.1361</div>
+      <div class="info-tile-lbl">W/cm² nad atmosférou</div>
+    </div>
+    <div class="info-tile">
+      <div class="info-tile-val">~150M</div>
+      <div class="info-tile-lbl">km Zem–Slnko</div>
+    </div>
+  </div>
+
+  <footer>
+    <p>Vzorec: E = S₀ ÷ 10 000 × sin(α) × k × t</p>
+    <p style="margin-top:6px">S₀ = 1361 W/m² &nbsp;|&nbsp; α = výška Slnka &nbsp;|&nbsp; k = atmosférický koeficient</p>
+  </footer>
+
+</div>
+
+<script>
+  // Build sun rays
+  const raysEl = document.getElementById('rays');
+  for (let i = 0; i < 8; i++) {
+    const r = document.createElement('div');
+    r.className = 'sun-ray';
+    r.style.transform = `translateX(-50%) rotate(${i * 45}deg)`;
+    raysEl.appendChild(r);
+  }
+
+  function fmtTime(t) {
+    if (t < 60) return t + ' s';
+    if (t < 3600) return (t / 60).toFixed(1) + ' min';
+    return '1 hod';
+  }
+
+  function updateSky(angle) {
+    const sky = document.getElementById('sky');
+    const sdot = document.getElementById('sdot');
+    const aline = document.getElementById('aline');
+    const h = sky.offsetHeight;
+    const w = sky.offsetWidth;
+
+    const groundH = 16;
+    const maxR = Math.min(w * 0.4, h - groundH - 10);
+    const bx = w * 0.5;
+    const by = h - groundH;
+
+    // angle 0 = left horizon, 90 = top, 180 = right horizon
+    const rad = angle * Math.PI / 180;
+    // map: 0° → left, 90° → top, 180° → right
+    const sx = bx - Math.cos(rad) * maxR;
+    const sy = by - Math.sin(rad) * maxR;
+
+    sdot.style.left = sx + 'px';
+    sdot.style.bottom = (h - sy) + 'px';
+
+    // show line only when sun is above horizon (0 < angle < 180)
+    const sinA = Math.sin(rad);
+    if (sinA > 0.01) {
+      aline.style.display = 'block';
+      aline.style.height = maxR + 'px';
+      aline.style.bottom = groundH + 'px';
+      // rotate: 0° points right, needs to swing from left (+90) to right (-90)
+      aline.style.transform = `translateX(-50%) rotate(${angle - 90}deg)`;
+    } else {
+      aline.style.display = 'none';
+    }
+  }
+
+  function calc() {
+    const angle = parseInt(document.getElementById('angle').value);
+    const atm   = parseInt(document.getElementById('atm').value);
+    const time  = parseInt(document.getElementById('time').value);
+
+    let angleDesc = '';
+    if (angle === 0 || angle === 180) angleDesc = ' (horizont)';
+    else if (angle === 90) angleDesc = ' (nadir)';
+    else if (angle < 90) angleDesc = ' (stúpa)';
+    else angleDesc = ' (klesá)';
+
+    document.getElementById('lbl-angle').textContent = angle + '°' + angleDesc;
+    document.getElementById('lbl-atm').textContent   = atm + '%';
+    document.getElementById('lbl-time').textContent  = fmtTime(time);
+
+    const S0 = 1361;
+    const perCm2 = S0 / 10000;
+    const sinA = Math.sin(angle * Math.PI / 180);
+    const k = atm / 100;
+
+    const perSec = perCm2 * sinA * k;
+    const total  = perSec * time;
+
+    document.getElementById('res-s').textContent = perSec.toFixed(5);
+    document.getElementById('res-t').textContent = total.toFixed(3);
+
+    document.getElementById('formula').innerHTML =
+      `E = <span class="hl">1361</span> ÷ 10 000 × sin(<span class="hl">${angle}°</span>) × <span class="hl">${k.toFixed(2)}</span> × <span class="hl">${time} s</span><br>` +
+      `&nbsp;&nbsp;= ${perCm2.toFixed(4)} × ${sinA.toFixed(4)} × ${k.toFixed(2)} × ${time}<br>` +
+      `&nbsp;&nbsp;= <span class="hl">${total.toFixed(4)} J/cm²</span>`;
+
+    updateSky(angle);
+  }
+
+  window.addEventListener('resize', () => {
+    calc();
+  });
+
+  calc();
+</script>
+</body>
+</html>
