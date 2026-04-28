@@ -376,10 +376,66 @@
     to { transform: rotate(360deg); }
   }
 
+  /* City presets */
+  .city-section {
+    margin-bottom: 2rem;
+    animation: fadeUp 0.8s 0.15s ease both;
+  }
+
+  .city-section-label {
+    font-size: 0.72rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-family: 'Space Mono', monospace;
+    margin-bottom: 0.75rem;
+  }
+
+  .city-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 8px;
+  }
+
+  .city-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.65rem 0.75rem;
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 0.2s, background 0.2s;
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+  }
+
+  .city-btn:hover { border-color: rgba(245,166,35,0.4); background: var(--surface2); }
+  .city-btn.active { border-color: var(--sun); background: rgba(245,166,35,0.07); }
+
+  .city-name { font-size: 0.82rem; font-weight: 700; display: flex; align-items: center; gap: 5px; }
+  .city-flag { font-size: 13px; }
+  .city-meta { font-size: 0.65rem; color: var(--muted); font-family: 'Space Mono', monospace; margin-top: 3px; line-height: 1.5; }
+
+  .season-toggle { display: flex; gap: 6px; margin-bottom: 0.75rem; }
+
+  .season-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 14px;
+    font-size: 0.75rem;
+    font-family: 'Space Mono', monospace;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .season-btn.active { border-color: var(--sun); color: var(--sun); background: rgba(245,166,35,0.07); }
+
   @media (max-width: 500px) {
     .results { grid-template-columns: 1fr; }
     .info-grid { grid-template-columns: 1fr 1fr; }
     .calc-card { padding: 1.25rem; }
+    .city-grid { grid-template-columns: repeat(2, 1fr); }
   }
 </style>
 </head>
@@ -394,6 +450,15 @@
     <h1>Slnečná <span>energia</span></h1>
     <p class="subtitle">koľko joulov dopadne na 1 cm² povrchu</p>
   </header>
+
+  <div class="city-section">
+    <div class="city-section-label">Vyber lokalitu — nastaví uhol a atmosféru</div>
+    <div class="season-toggle">
+      <button class="season-btn active" id="btn-leto" onclick="setSeason('leto')">☀ Leto</button>
+      <button class="season-btn" id="btn-zima" onclick="setSeason('zima')">❄ Zima</button>
+    </div>
+    <div class="city-grid" id="city-grid"></div>
+  </div>
 
   <div class="results">
     <div class="result-card">
@@ -474,13 +539,65 @@
   <footer>
     <p>Vzorec: E = S₀ ÷ 10 000 × sin(α) × k × t</p>
     <p style="margin-top:6px">S₀ = 1361 W/m² &nbsp;|&nbsp; α = výška Slnka &nbsp;|&nbsp; k = atmosférický koeficient</p>
-    <p style="margin-top:6px">Who does this? Of cours Franky" </p>
   </footer>
 
 </div>
 
 <script>
-  // Build sun rays
+  // City data: [flag, name, lat, summerAngle, winterAngle, summerAtm, winterAtm, note]
+  const cities = [
+    { flag: '🇸🇰', name: 'Bratislava', lat: 48.1, summer: 65, winter: 18, atmS: 72, atmW: 55, noteS: 'jún, poludnie', noteW: 'dec, poludnie' },
+    { flag: '🇬🇧', name: 'Londýn',     lat: 51.5, summer: 62, winter: 15, atmS: 65, atmW: 50, noteS: 'jún, poludnie', noteW: 'dec, poludnie' },
+    { flag: '🇩🇪', name: 'Berlín',     lat: 52.5, summer: 61, winter: 14, atmS: 70, atmW: 52, noteS: 'jún, poludnie', noteW: 'dec, poludnie' },
+    { flag: '🇺🇸', name: 'New York',   lat: 40.7, summer: 73, winter: 26, atmS: 75, atmW: 65, noteS: 'jún, poludnie', noteW: 'dec, poludnie' },
+    { flag: '🇧🇷', name: 'São Paulo',  lat: -23.5, summer: 90, winter: 43, atmS: 78, atmW: 80, noteS: 'dec, poludnie', noteW: 'jún, poludnie' },
+    { flag: '🇨🇳', name: 'Peking',     lat: 39.9, summer: 74, winter: 27, atmS: 60, atmW: 55, noteS: 'jún, poludnie', noteW: 'dec, poludnie' },
+    { flag: '🇰🇪', name: 'Nairobi',    lat: -1.3, summer: 89, winter: 88, atmS: 85, atmW: 82, noteS: 'blízko rovníka', noteW: 'blízko rovníka' },
+    { flag: '🇿🇦', name: 'Kapské Mesto', lat: -33.9, summer: 80, winter: 33, atmS: 88, atmW: 72, noteS: 'dec, poludnie', noteW: 'jún, poludnie' },
+  ];
+
+  let currentSeason = 'leto';
+  let activeCity = null;
+
+  function setSeason(s) {
+    currentSeason = s;
+    document.getElementById('btn-leto').classList.toggle('active', s === 'leto');
+    document.getElementById('btn-zima').classList.toggle('active', s === 'zima');
+    if (activeCity !== null) applyCity(activeCity);
+    renderCities();
+  }
+
+  function applyCity(idx) {
+    activeCity = idx;
+    const c = cities[idx];
+    const angle = currentSeason === 'leto' ? c.summer : c.winter;
+    const atm   = currentSeason === 'leto' ? c.atmS   : c.atmW;
+    document.getElementById('angle').value = angle;
+    document.getElementById('atm').value   = atm;
+    calc();
+    renderCities();
+  }
+
+  function renderCities() {
+    const grid = document.getElementById('city-grid');
+    grid.innerHTML = '';
+    cities.forEach((c, i) => {
+      const angle = currentSeason === 'leto' ? c.summer : c.winter;
+      const note  = currentSeason === 'leto' ? c.noteS  : c.noteW;
+      const btn = document.createElement('button');
+      btn.className = 'city-btn' + (activeCity === i ? ' active' : '');
+      btn.innerHTML = `
+        <div class="city-name"><span class="city-flag">${c.flag}</span>${c.name}</div>
+        <div class="city-meta">${angle}° · ${note}</div>
+      `;
+      btn.onclick = () => applyCity(i);
+      grid.appendChild(btn);
+    });
+  }
+
+  renderCities();
+
+
   const raysEl = document.getElementById('rays');
   for (let i = 0; i < 8; i++) {
     const r = document.createElement('div');
